@@ -1,98 +1,89 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useState, useEffect } from 'react';
+import { StyleSheet, StatusBar, View, Text, TouchableOpacity, Modal, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const injectWordleHeist = `
+  const style = document.createElement('style');
+  style.innerHTML = '[class*="StatsRegiwall"], [class*="Welcome-module"], [class*="fides-banner"] { display: none !important; }';
+  document.head.appendChild(style);
+
+  let lastReportedStatus = 'IN_PROGRESS';
+  setInterval(() => {
+    try {
+      const stateStr = window.localStorage.getItem('nyt-wordle-state');
+      if (stateStr) {
+        const state = JSON.parse(stateStr);
+        
+        if (state.gameStatus && state.gameStatus !== 'IN_PROGRESS' && state.gameStatus !== lastReportedStatus) {
+          lastReportedStatus = state.gameStatus;
+          
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            status: state.gameStatus,
+            guessesTaken: state.rowIndex,
+            wordsGuessed: state.boardState.filter(word => word !== '')
+          }));
+        }
+      }
+    } catch (e) {}
+  }, 2000);
+  
+  true;
+`;
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const [username, setUsername] = useState('Player');
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  useEffect(() => {
+    AsyncStorage.getItem('wordlers_name').then(name => {
+      if (name) setUsername(name);
+    });
+  }, []);
+  const handleMessage = (event: any) => {
+    try {
+      const stats = JSON.parse(event.nativeEvent.data);
+      console.log("Clean Wordlers Data:", stats);
+
+      fetch('/api/save-score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: "sabs", // Still hardcoded for testing
+          ...stats
+        })
+      })
+      .then(res => res.json())
+      .then(data => console.log("DB Save Result:", data))
+      .catch(err => console.error("DB Save Error:", err));
+        
+    } catch (error) {
+      console.error("Error parsing Wordle data:", error);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <WebView
+        source={{ uri: 'https://www.nytimes.com/games/wordle/index.html' }}
+        injectedJavaScript={injectWordleHeist}
+        onMessage={handleMessage}
+        incognito={true} /* Keeps it fresh for testing */
+        style={styles.webview}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  container: {
+    flex: 1,
+    backgroundColor: '#ffffff', 
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  webview: {
+    flex: 1,
   },
 });
