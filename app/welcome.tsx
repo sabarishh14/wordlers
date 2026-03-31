@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Platform, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 export default function WelcomeScreen() {
   const [name, setName] = useState('');
@@ -24,10 +25,12 @@ export default function WelcomeScreen() {
 
   const handleLogin = async () => {
     if (name.trim().length < 2 || pin.trim().length < 4) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       alert('Please enter a valid name and a 4-digit PIN!');
       return;
     }
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setLoading(true);
     try {
       const res = await fetch('/api/auth', {
@@ -39,14 +42,16 @@ export default function WelcomeScreen() {
       const data = await res.json();
 
       if (res.ok) {
-        // Only save to phone if the DB says the PIN is correct!
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         await AsyncStorage.setItem('wordlers_name', name.trim());
         router.replace('/(tabs)' as any);
       } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
         alert(data.error || 'Authentication failed');
       }
     } catch (error) {
-      console.log("REAL ERROR:", error); // Look at your terminal for this!
+      console.log("REAL ERROR:", error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       alert('Network error. Check terminal.');
     } finally {
       setLoading(false);

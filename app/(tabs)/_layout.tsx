@@ -1,18 +1,26 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '../_ThemeContext';
 
 export default function TabLayout() {
+  const { isDark } = useTheme();
+
+  // Dynamic colors for the tab bar
+  const themeBg = isDark ? '#121212' : '#ffffff';
+  const borderColor = isDark ? '#222222' : '#f4f4f5';
+  const activeColor = isDark ? '#538d4e' : '#6aaa64'; // Slightly deeper green for dark mode contrast
+
   return (
     <Tabs screenOptions={{ 
-      tabBarActiveTintColor: '#6aaa64', // Official Wordle Green
-      tabBarInactiveTintColor: '#a1a1aa', // Soft modern gray
+      tabBarActiveTintColor: activeColor, 
+      tabBarInactiveTintColor: '#a1a1aa', 
       headerShown: false,
       tabBarStyle: {
         borderTopWidth: 1,
-        borderTopColor: '#f4f4f5',
-        elevation: 0, // Removes harsh Android shadow
-        shadowOpacity: 0, // Removes harsh iOS shadow
-        backgroundColor: '#ffffff'
+        borderTopColor: borderColor,
+        elevation: 0, 
+        shadowOpacity: 0, 
+        backgroundColor: themeBg
       }
     }}>
       <Tabs.Screen 

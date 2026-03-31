@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Modal, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
+import { useTheme } from '../_ThemeContext';
 
 // The rock-solid, crash-free Heist Script
 const injectWordleHeist = `
@@ -80,6 +81,14 @@ export default function HomeScreen() {
     checkUser();
   }, []);
 
+  // --- THEME VARIABLES ---
+  const { isDark } = useTheme();
+  const themeBg = isDark ? '#121212' : '#f4f4f5';
+  const textColor = isDark ? '#ffffff' : '#000000';
+  const btnBg = isDark ? '#333333' : '#e5e5e5';
+  const btnText = isDark ? '#cccccc' : '#555555';
+  // -----------------------
+
   const handleMessage = (event: any) => {
     try {
       const stats = JSON.parse(event.nativeEvent.data);
@@ -87,21 +96,23 @@ export default function HomeScreen() {
 
       if (stats.status === 'WIN' || stats.status === 'FAIL') {
         
-        // 1. ALWAYS save to the database so your leaderboard is perfectly synced!
-        fetch('/api/save-score', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: username,
-            ...stats
-          })
-        })
-        .then(res => res.json())
-        .then(data => console.log("DB Save Result:", data))
-        .catch(err => console.error("DB Save Error:", err));
-
-        // 2. ONLY show the popup if they JUST won the game (not on a page refresh)
+        // ONLY process the save and the popup if this is a fresh game completion (!silent)
         if (!stats.silent) {
+          
+          // 1. Save to database
+          fetch('/api/save-score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: username,
+              ...stats
+            })
+          })
+          .then(res => res.json())
+          .then(data => console.log("DB Save Result:", data))
+          .catch(err => console.error("DB Save Error:", err));
+
+          // 2. Show the popup modal
           setGameStats(stats);
           setShowModal(true);
         }
@@ -113,25 +124,25 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f4f4f5" />
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: themeBg }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={themeBg} />
       
       {/* Escape Hatch Header */}
       <View style={styles.headerRow}>
-        <Text style={styles.headerText}>Wordlers</Text>
+        <Text style={[styles.headerText, { color: textColor }]}>Wordlers</Text>
         
         <TouchableOpacity 
-          style={styles.refreshButton}
+          style={[styles.refreshButton, { backgroundColor: btnBg }]}
           onPress={() => {
             webviewRef.current?.injectJavaScript(`window.location.href = 'https://www.nytimes.com/games/wordle/index.html'; true;`);
           }}
         >
-          <Ionicons name="refresh" size={16} color="#666" />
-          <Text style={styles.refreshText}>Reset</Text>
+          <Ionicons name="refresh" size={16} color={btnText} />
+          <Text style={[styles.refreshText, { color: btnText }]}>Reset</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={styles.webviewWrapper}>
+      <View style={[styles.webviewWrapper, { backgroundColor: isDark ? '#121212' : '#ffffff' }]}>
         <WebView
           ref={webviewRef}
           source={{ uri: 'https://www.nytimes.com/games/wordle/index.html' }}

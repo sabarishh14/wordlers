@@ -5,6 +5,8 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Haptics from 'expo-haptics';
+import { useTheme } from '../_ThemeContext';
 
 type Stats = {
   totalPlayed: number;
@@ -23,6 +25,14 @@ export default function ProfileScreen() {
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
+
+  // --- ADD THESE THEME VARIABLES HERE ---
+  const { isDark, toggleTheme } = useTheme();
+
+  const themeBg = isDark ? '#121212' : '#f4f4f5';
+  const cardBg = isDark ? '#1e1e1e' : '#ffffff';
+  const textColor = isDark ? '#ffffff' : '#121212';
+  const graphBg = isDark ? '#333333' : '#f4f4f5';
 
   useEffect(() => {
     loadProfile();
@@ -124,22 +134,34 @@ export default function ProfileScreen() {
   const averageGuesses = totalWins > 0 ? (totalGuesses / totalWins).toFixed(2) : '0.00';
 
   return (
-    <SafeAreaView edges={['top', 'left', 'right']} style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#f4f4f5" />
+    <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: themeBg }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={themeBg} />
       
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.header}>Profile</Text>
+        
+        {/* Header with Dark Mode Toggle */}
+        <View style={styles.headerRow}>
+          <Text style={[styles.header, { color: textColor }]}>Profile</Text>
+          <TouchableOpacity 
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              toggleTheme();
+            }} 
+            style={styles.themeToggleBtn}
+          >
+            <Ionicons name={isDark ? "sunny" : "moon"} size={26} color={textColor} />
+          </TouchableOpacity>
+        </View>
 
         {/* Interactive Name Badge */}
         <View style={styles.userBadge}>
-          
-          <TouchableOpacity onPress={pickImage} style={styles.avatarCircle}>
+          <TouchableOpacity onPress={pickImage} style={[styles.avatarCircle, { backgroundColor: isDark ? '#333' : '#121212' }]}>
             {avatarUri ? (
               <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
             ) : (
               <Text style={styles.avatarText}>{username ? username.charAt(0).toUpperCase() : '?'}</Text>
             )}
-            <View style={styles.editAvatarBadge}>
+            <View style={[styles.editAvatarBadge, { borderColor: themeBg, backgroundColor: isDark ? '#555' : '#121212' }]}>
               <Ionicons name="camera" size={12} color="#ffffff" />
             </View>
           </TouchableOpacity>
@@ -147,12 +169,13 @@ export default function ProfileScreen() {
           {isEditingName ? (
             <View style={styles.nameEditContainer}>
               <TextInput
-                style={styles.nameInput}
+                style={[styles.nameInput, { backgroundColor: cardBg, color: textColor, borderColor: isDark ? '#444' : '#e5e5e5' }]}
                 value={editNameValue}
                 onChangeText={setEditNameValue}
                 autoFocus
                 onSubmitEditing={handleSaveName}
                 placeholder="New name..."
+                placeholderTextColor="#a1a1aa"
               />
               <TouchableOpacity onPress={handleSaveName} style={styles.iconBtn}>
                 <Ionicons name="checkmark-circle" size={28} color="#6aaa64" />
@@ -163,13 +186,15 @@ export default function ProfileScreen() {
             </View>
           ) : (
             <View style={styles.nameDisplayContainer}>
-              <Text style={styles.userName}>{username}</Text>
+              <Text style={[styles.userName, { color: textColor }]} numberOfLines={1} ellipsizeMode="tail">
+                {username}
+              </Text>
               <TouchableOpacity 
                 onPress={() => { setEditNameValue(username); setIsEditingName(true); }} 
                 style={styles.editNameBtn}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
               >
-                <View style={styles.pencilCircle}>
+                <View style={[styles.pencilCircle, { backgroundColor: isDark ? '#333' : '#121212' }]}>
                   <Ionicons name="pencil" size={14} color="#ffffff" />
                 </View>
               </TouchableOpacity>
@@ -179,27 +204,27 @@ export default function ProfileScreen() {
 
         {/* Modern Stats Grid */}
         <View style={styles.statsContainer}>
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>{String(stats?.totalPlayed || 0)}</Text>
+          <View style={[styles.statBox, { backgroundColor: cardBg }]}>
+            <Text style={[styles.statNumber, { color: textColor }]}>{String(stats?.totalPlayed || 0)}</Text>
             <Text style={styles.statLabel}>Played</Text>
           </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>{String(stats?.winPercentage || 0)}</Text>
+          <View style={[styles.statBox, { backgroundColor: cardBg }]}>
+            <Text style={[styles.statNumber, { color: textColor }]}>{String(stats?.winPercentage || 0)}</Text>
             <Text style={styles.statLabel}>Win %</Text>
           </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>{String(stats?.currentStreak || 0)}</Text>
+          <View style={[styles.statBox, { backgroundColor: cardBg }]}>
+            <Text style={[styles.statNumber, { color: textColor }]}>{String(stats?.currentStreak || 0)}</Text>
             <Text style={styles.statLabel}>Current Streak</Text>
           </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>{averageGuesses}</Text>
+          <View style={[styles.statBox, { backgroundColor: cardBg }]}>
+            <Text style={[styles.statNumber, { color: textColor }]}>{averageGuesses}</Text>
             <Text style={styles.statLabel}>Avg Guesses</Text>
           </View>
         </View>
 
         {/* Guess Distribution Chart */}
-        <View style={styles.chartContainer}>
-          <Text style={styles.chartTitle}>Guess Distribution</Text>
+        <View style={[styles.chartContainer, { backgroundColor: cardBg }]}>
+          <Text style={[styles.chartTitle, { color: textColor }]}>Guess Distribution</Text>
           
           {[1, 2, 3, 4, 5, 6].map((guess) => {
             const count = stats?.distribution[guess] || 0;
@@ -208,14 +233,14 @@ export default function ProfileScreen() {
 
             return (
               <View key={guess} style={styles.graphRow}>
-                <Text style={styles.graphNumber}>{String(guess)}</Text>
+                <Text style={[styles.graphNumber, { color: textColor }]}>{String(guess)}</Text>
                 <View style={styles.graphBarWrapper}>
                   <View style={[
                     styles.graphBar, 
-                    { width: barWidth as any },
+                    { width: barWidth as any, backgroundColor: graphBg },
                     count > 0 && styles.graphBarFilled
                   ]}>
-                    <Text style={styles.graphBarText}>{String(count)}</Text>
+                    <Text style={[styles.graphBarText, { color: count > 0 ? '#ffffff' : textColor }]}>{String(count)}</Text>
                   </View>
                 </View>
               </View>
@@ -235,11 +260,12 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f4f4f5' },
-  header: { fontSize: 36, fontWeight: '900', marginBottom: 16, marginTop: 16, paddingHorizontal: 20, letterSpacing: -1.5, color: '#121212' },
-  userBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 32 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginTop: 16, marginBottom: 16 },
+  header: { fontSize: 36, fontWeight: '900', letterSpacing: -1.5 },
+  themeToggleBtn: { padding: 4 },  userBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, marginBottom: 32 },
   avatarCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
   avatarText: { color: '#ffffff', fontSize: 22, fontWeight: 'bold' },
-  userName: { fontSize: 24, fontWeight: '700', color: '#121212' },
+  userName: { fontSize: 24, fontWeight: '700', flexShrink: 1 },  editNameBtn: { justifyContent: 'center', alignItems: 'center' },
   
   statsContainer: { 
     flexDirection: 'row', 
@@ -281,8 +307,7 @@ const styles = StyleSheet.create({
   // Add these right under your existing avatarText style
   avatarImage: { width: 48, height: 48, borderRadius: 24 },
   editAvatarBadge: { position: 'absolute', bottom: -2, right: -2, backgroundColor: '#121212', borderRadius: 10, padding: 4, borderWidth: 2, borderColor: '#f4f4f5' },
-  nameDisplayContainer: { flexDirection: 'row', alignItems: 'center' },
-  editNameBtn: { justifyContent: 'center', alignItems: 'center' },
+  nameDisplayContainer: { flexDirection: 'row', alignItems: 'center', flexShrink: 1, paddingRight: 10 },
   pencilCircle: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center', marginLeft: 12 },
   nameEditContainer: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   nameInput: { flex: 1, backgroundColor: '#ffffff', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, fontSize: 18, fontWeight: '600', borderWidth: 1, borderColor: '#e5e5e5', marginRight: 8 },

@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { FlatList, Modal, RefreshControl, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useTheme } from '../_ThemeContext';
 
 type Score = {
   username: string;
@@ -12,6 +13,17 @@ type Score = {
 };
 
 export default function ExploreScreen() {
+
+  // --- THEME VARIABLES ---
+  const { isDark } = useTheme();
+  const themeBg = isDark ? '#121212' : '#ffffff';
+  const textColor = isDark ? '#ffffff' : '#121212';
+  const cardBg = isDark ? '#1e1e1e' : '#f4f4f5';
+  const borderColor = isDark ? '#333333' : '#f0f2f5';
+  const modalBg = isDark ? '#1e1e1e' : '#ffffff';
+  const emptyBoxBorder = isDark ? '#3a3a3c' : '#d3d6da';
+  // -----------------------
+
   // Add this formatter right at the top of the component
   const formatTime = (seconds?: number) => {
     if (!seconds) return '';
@@ -68,19 +80,19 @@ export default function ExploreScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: themeBg }]}>
       
       {/* Interactive Date Header */}
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Leaderboard</Text>
+        <Text style={[styles.headerTitle, { color: textColor }]}>Leaderboard</Text>
         
-        <View style={styles.dateSelector}>
+        <View style={[styles.dateSelector, { backgroundColor: cardBg }]}>
           <TouchableOpacity onPress={() => shiftDate(-1)} style={styles.dateArrow} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons name="chevron-back" size={16} color="#121212" />
+            <Ionicons name="chevron-back" size={16} color={textColor} />
           </TouchableOpacity>
           
-          <View style={styles.datePill}>
-            <Text style={styles.dateText}>{getDisplayDate()}</Text>
+          <View style={[styles.datePill, { backgroundColor: isDark ? '#333' : '#ffffff' }]}>
+            <Text style={[styles.dateText, { color: textColor }]}>{getDisplayDate()}</Text>
           </View>
           
           <TouchableOpacity 
@@ -89,60 +101,57 @@ export default function ExploreScreen() {
             disabled={selectedDate === todayStr} 
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="chevron-forward" size={16} color={selectedDate === todayStr ? "#d3d6da" : "#121212"} />
+            <Ionicons name="chevron-forward" size={16} color={selectedDate === todayStr ? (isDark ? "#555" : "#d3d6da") : textColor} />
           </TouchableOpacity>
         </View>
       </View>
       
       <FlatList
         data={scores}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchScores} tintColor="#000" />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchScores} tintColor={textColor} />}
         keyExtractor={(item, index) => item.username + index}
         renderItem={({ item, index }) => (
           <TouchableOpacity 
-            style={styles.row}
+            style={[styles.row, { borderColor: borderColor }]}
             activeOpacity={0.7}
             onPress={() => setSelectedScore(item)}
           >
-            <View style={[styles.rankBadge, index === 0 && styles.rankBadgeGold]}>
-              <Text style={[styles.rankText, index === 0 && styles.rankTextGold]}>
+            <View style={[styles.rankBadge, index === 0 ? styles.rankBadgeGold : { backgroundColor: cardBg }]}>
+              <Text style={[styles.rankText, index === 0 ? styles.rankTextGold : { color: isDark ? '#888' : '#888' }]}>
                 {index + 1}
               </Text>
             </View>
-            <Text style={styles.name}>{item.username}</Text>
+            <Text style={[styles.name, { color: textColor }]}>{item.username}</Text>
             
-            <View style={[styles.scorePill, item.status === 'WIN' ? styles.scorePillWin : styles.scorePillFail]}>
+            <View style={[styles.scorePill, item.status === 'WIN' ? [styles.scorePillWin, isDark && { backgroundColor: '#1b3320' }] : [styles.scorePillFail, isDark && { backgroundColor: '#3b1c1c' }]]}>
               <Text style={[styles.scoreText, item.status !== 'WIN' && styles.scoreTextFail]}>
                 {item.status === 'WIN' ? `${item.guesses_taken}/6` : 'FAIL'}
               </Text>
             </View>
             
-            {/* The subtle native chevron hint */}
-            <Ionicons name="chevron-forward" size={20} color="#c7c7cc" style={{ marginLeft: 12 }} />
+            <Ionicons name="chevron-forward" size={20} color={isDark ? "#555" : "#c7c7cc"} style={{ marginLeft: 12 }} />
             
           </TouchableOpacity>
         )}
-        ListEmptyComponent={<Text style={styles.empty}>No scores yet today. Be the first!</Text>}
+        ListEmptyComponent={<Text style={[styles.empty, { color: isDark ? '#666' : '#a1a1aa' }]}>No scores yet today. Be the first!</Text>}
       />
+      
       {/* The Wordle Board Modal */}
       <Modal visible={!!selectedScore} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>{selectedScore?.username}'s Board</Text>
+          <View style={[styles.modalContent, { backgroundColor: modalBg }]}>
+            <Text style={[styles.modalTitle, { color: textColor }]}>{selectedScore?.username}'s Board</Text>
             
             <View style={styles.gridContainer}>
-              {/* Loop through the 6 possible Wordle rows */}
               {[...Array(6)].map((_, rowIndex) => {
-                const word = selectedScore?.words_guessed?.[rowIndex] || ''; // Get the word if it exists
+                const word = selectedScore?.words_guessed?.[rowIndex] || ''; 
                 
                 return (
                   <View key={rowIndex} style={styles.gridRow}>
-                    {/* Loop through the 5 letters of the word */}
                     {[...Array(5)].map((_, colIndex) => {
                       const letter = word[colIndex] || '';
                       const isFilled = letter !== '';
                       
-                      // SAFE PARSE: If Neon returns a string, turn it back into an array!
                       let evalsArray = selectedScore?.evaluations || [];
                       if (typeof evalsArray === 'string') {
                         try { evalsArray = JSON.parse(evalsArray); } catch(e) {}
@@ -150,9 +159,8 @@ export default function ExploreScreen() {
                       
                       const evaluation = evalsArray?.[rowIndex]?.[colIndex] || 'empty';
                       
-                      // Determine the colors based on NYT's state output
-                      const boxStyles: any[] = [styles.gridBox];
-                      const textStyles: any[] = [styles.gridLetter];
+                      const boxStyles: any[] = [styles.gridBox, { backgroundColor: modalBg, borderColor: emptyBoxBorder }];
+                      const textStyles: any[] = [styles.gridLetter, { color: textColor }];
                       
                       if (evaluation === 'correct') {
                         boxStyles.push(styles.gridBoxCorrect);
@@ -164,7 +172,7 @@ export default function ExploreScreen() {
                         boxStyles.push(styles.gridBoxAbsent);
                         textStyles.push(styles.gridLetterWhite);
                       } else if (isFilled) {
-                        boxStyles.push(styles.gridBoxFilled);
+                        boxStyles.push([styles.gridBoxFilled, isDark && { borderColor: '#565758' }]);
                       }
                       
                       return (
@@ -178,7 +186,7 @@ export default function ExploreScreen() {
               })}
             </View>
 
-            <TouchableOpacity style={styles.closeButton} onPress={() => setSelectedScore(null)}>
+            <TouchableOpacity style={[styles.closeButton, { backgroundColor: isDark ? '#333' : '#121212' }]} onPress={() => setSelectedScore(null)}>
               <Text style={styles.closeButtonText}>Close Board</Text>
             </TouchableOpacity>
           </View>
