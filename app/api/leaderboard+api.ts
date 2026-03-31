@@ -5,7 +5,7 @@ export async function GET() {
     const sql = neon(process.env.EXPO_PUBLIC_DATABASE_URL!);
     
     const scores = await sql`
-      SELECT username, status, guesses_taken 
+      SELECT username, status, guesses_taken, words_guessed, evaluations 
       FROM daily_scores 
       WHERE played_date = CURRENT_DATE
       ORDER BY 
