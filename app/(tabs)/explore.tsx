@@ -144,7 +144,12 @@ export default function ExploreScreen() {
             
             <View style={styles.gridContainer}>
               {[...Array(6)].map((_, rowIndex) => {
-                const word = selectedScore?.words_guessed?.[rowIndex] || ''; 
+                // 1. SAFE PARSE for words_guessed (just like we did for evaluations)
+                let wordsArray = selectedScore?.words_guessed || [];
+                if (typeof wordsArray === 'string') {
+                  try { wordsArray = JSON.parse(wordsArray); } catch(e) {}
+                }
+                const word = wordsArray[rowIndex] || ''; 
                 
                 return (
                   <View key={rowIndex} style={styles.gridRow}>
@@ -152,6 +157,7 @@ export default function ExploreScreen() {
                       const letter = word[colIndex] || '';
                       const isFilled = letter !== '';
                       
+                      // 2. SAFE PARSE for evaluations
                       let evalsArray = selectedScore?.evaluations || [];
                       if (typeof evalsArray === 'string') {
                         try { evalsArray = JSON.parse(evalsArray); } catch(e) {}
@@ -169,7 +175,8 @@ export default function ExploreScreen() {
                         boxStyles.push(styles.gridBoxPresent);
                         textStyles.push(styles.gridLetterWhite);
                       } else if (evaluation === 'absent') {
-                        boxStyles.push(styles.gridBoxAbsent);
+                        // 3. TRUE DARK MODE ABSENT COLOR
+                        boxStyles.push([styles.gridBoxAbsent, isDark && { backgroundColor: '#3a3a3c', borderColor: '#3a3a3c' }]);
                         textStyles.push(styles.gridLetterWhite);
                       } else if (isFilled) {
                         boxStyles.push([styles.gridBoxFilled, isDark && { borderColor: '#565758' }]);

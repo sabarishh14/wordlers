@@ -34,15 +34,32 @@ const injectWordleHeist = `
         
         // FUNCTION TO EXTRACT DATA
         const getPayload = () => {
-          const extractedEvals = Array.from(document.querySelectorAll('[data-testid="Row"]')).map(row => 
-            Array.from(row.querySelectorAll('[data-testid="tile"]')).map(t => t.getAttribute('data-state'))
-          ).filter(row => row.length > 0 && row[0] && row[0] !== 'empty' && row[0] !== 'tbd');
+          // Grab ONLY the board tiles (ignoring the keyboard keys!)
+          const allTiles = Array.from(document.querySelectorAll('[data-testid="tile"]'));
+          const extractedEvals = [];
+          
+          for (let i = 0; i < allTiles.length; i += 5) {
+            const rowEvals = allTiles.slice(i, i + 5).map(t => t.getAttribute('data-state'));
+            
+            // Only save the row if it's fully evaluated (not empty or flipping/tbd)
+            if (rowEvals.length === 5 && rowEvals[0] !== 'empty' && rowEvals[0] !== 'tbd') {
+              extractedEvals.push(rowEvals);
+            }
+          }
 
           return {
             status: currentStatus,
             guessesTaken: state.currentRowIndex,
             wordsGuessed: state.boardState.filter(word => word !== ''),
-            evaluations: state.evaluations || extractedEvals
+            evaluations: extractedEvals
+          };
+        };
+
+          return {
+            status: currentStatus,
+            guessesTaken: state.currentRowIndex,
+            wordsGuessed: state.boardState.filter(word => word !== ''),
+            evaluations: extractedEvals // Exclusively rely on our scraped DOM data!
           };
         };
 
@@ -58,7 +75,7 @@ const injectWordleHeist = `
           // DELAY: Wait 3 seconds for the "Flip" animations to finish so the colors match!
           setTimeout(() => {
             window.ReactNativeWebView.postMessage(JSON.stringify({ ...getPayload(), silent: false }));
-          }, 3000);
+          }, 5000);
         }
       }
     } catch (e) {}
@@ -134,7 +151,12 @@ export default function HomeScreen() {
         <TouchableOpacity 
           style={[styles.refreshButton, { backgroundColor: btnBg }]}
           onPress={() => {
-            webviewRef.current?.injectJavaScript(`window.location.href = 'https://www.nytimes.com/games/wordle/index.html'; true;`);
+            // Added window.localStorage.clear() to nuke the NYT save state for testing!
+            webviewRef.current?.injectJavaScript(`
+              window.localStorage.clear(); 
+              window.location.href = 'https://www.nytimes.com/games/wordle/index.html'; 
+              true;
+            `);
           }}
         >
           <Ionicons name="refresh" size={16} color={btnText} />
