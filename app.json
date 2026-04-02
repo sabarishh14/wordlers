@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "wordlers",
-    "slug": "wordlers",
+    "name": "Wordlers",
+    "slug": "Wordlers",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "wordlers",
+    "scheme": "Wordlers",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
