@@ -1,6 +1,8 @@
 import { neon } from '@neondatabase/serverless';
 
-export async function GET(request: Request) {
+export const config = { runtime: 'edge' };
+
+export default async function handler(request: Request) {
   try {
     const sql = neon(process.env.EXPO_PUBLIC_DATABASE_URL!);
     

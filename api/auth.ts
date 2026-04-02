@@ -1,6 +1,8 @@
 import { neon } from '@neondatabase/serverless';
 
-export async function POST(request: Request) {
+export const config = { runtime: 'edge' };
+
+export default async function handler(request: Request) {
   try {
     const { username, pin } = await request.json();
     
