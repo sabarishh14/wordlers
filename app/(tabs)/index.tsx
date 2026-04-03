@@ -95,6 +95,7 @@ export default function HomeScreen() {
   const [username, setUsername] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [gameStats, setGameStats] = useState<any>(null);
+  const [wordMeaning, setWordMeaning] = useState<string | null>(null); // <-- ADD THIS
   const webviewRef = useRef<WebView>(null);
 
   useEffect(() => {
@@ -113,14 +114,13 @@ export default function HomeScreen() {
   const btnText = isDark ? '#cccccc' : '#555555';
   // -----------------------
 
-  const handleMessage = (event: any) => {
+  const handleMessage = async (event: any) => { // <-- Note the 'async' here
     try {
       const stats = JSON.parse(event.nativeEvent.data);
       console.log("Clean Wordlers Data:", stats);
 
       if (stats.status === 'WIN' || stats.status === 'FAIL') {
         
-        // ONLY process the save and the popup if this is a fresh game completion (!silent)
         if (!stats.silent) {
           
           // 1. Save to database
@@ -136,7 +136,25 @@ export default function HomeScreen() {
           .then(data => console.log("DB Save Result:", data))
           .catch(err => console.error("DB Save Error:", err));
 
-          // 2. Show the popup modal
+          // 2. Fetch the word meaning if they won
+          if (stats.status === 'WIN' && stats.wordsGuessed.length > 0) {
+            const winningWord = stats.wordsGuessed[stats.wordsGuessed.length - 1];
+            try {
+              const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${winningWord}`);
+              const data = await res.json();
+              if (data && data[0] && data[0].meanings[0].definitions[0].definition) {
+                setWordMeaning(data[0].meanings[0].definitions[0].definition);
+              } else {
+                setWordMeaning("Wow, you used a word so obscure even our dictionary doesn't know it.");
+              }
+            } catch (err) {
+              setWordMeaning("Could not load definition right now.");
+            }
+          } else {
+            setWordMeaning(null); // Reset if they failed
+          }
+
+          // 3. Show the popup modal
           setGameStats(stats);
           setShowModal(true);
         }
@@ -167,7 +185,7 @@ export default function HomeScreen() {
           }}
         >
           <Ionicons name="refresh" size={16} color={btnText} />
-          <Text style={[styles.refreshText, { color: btnText }]}>Reset</Text>
+          <Text style={[styles.refreshText, { color: btnText }]}>Go to Wordle</Text>
         </TouchableOpacity>
       </View>
 
@@ -204,6 +222,19 @@ export default function HomeScreen() {
                 : 'The streak ends, but the leaderboard awaits.'}
             </Text>
             <Text style={styles.modalSubText}>Your score is locked in on Wordlers.</Text>
+            
+            {/* --- ADD THIS NEW BLOCK --- */}
+            {gameStats?.status === 'WIN' && wordMeaning && (
+              <View style={{ backgroundColor: '#f4f4f5', padding: 12, borderRadius: 12, marginBottom: 24, width: '100%' }}>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 4, color: '#333' }}>
+                  {gameStats.wordsGuessed[gameStats.wordsGuessed.length - 1].toUpperCase()}
+                </Text>
+                <Text style={{ fontSize: 14, color: '#555', fontStyle: 'italic' }}>
+                  {wordMeaning}
+                </Text>
+              </View>
+            )}
+            {/* -------------------------- */}
             
             <TouchableOpacity 
               style={styles.modalButton} 

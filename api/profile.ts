@@ -15,7 +15,7 @@ export default async function handler(request: Request) {
     
     // Fetch all historical scores for this user, sorted chronologically
     const scores = await sql`
-      SELECT played_date, status, guesses_taken 
+      SELECT played_date, status, guesses_taken, time_taken 
       FROM daily_scores 
       WHERE username = ${username}
       ORDER BY played_date ASC;
@@ -70,12 +70,24 @@ export default async function handler(request: Request) {
       currentStreak = tempStreak;
     }
 
+    // 4. Calculate Average Time (for games they won with a valid time)
+    let totalTime = 0;
+    let gamesWithTime = 0;
+    wins.forEach(w => {
+      if (w.time_taken && w.time_taken > 0) {
+        totalTime += w.time_taken;
+        gamesWithTime++;
+      }
+    });
+    const averageTime = gamesWithTime > 0 ? Math.round(totalTime / gamesWithTime) : 0;
+
     return Response.json({
       totalPlayed,
       winPercentage,
       currentStreak,
       maxStreak,
-      distribution
+      distribution,
+      averageTime
     });
 
   } catch (error) {

@@ -14,6 +14,7 @@ type Stats = {
   currentStreak: number;
   maxStreak: number;
   distribution: Record<string, number>;
+  averageTime: number;
 };
 
 export default function ProfileScreen() {
@@ -133,6 +134,14 @@ export default function ProfileScreen() {
   }
   const averageGuesses = totalWins > 0 ? (totalGuesses / totalWins).toFixed(2) : '0.00';
 
+  // Format Average Time for Display
+  const formatTime = (seconds?: number) => {
+    if (!seconds || seconds === 0) return '--';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+  };
+
   return (
     <SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: themeBg }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={themeBg} />
@@ -217,8 +226,16 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>Current Streak</Text>
           </View>
           <View style={[styles.statBox, { backgroundColor: cardBg }]}>
+            <Text style={[styles.statNumber, { color: textColor }]}>{String(stats?.maxStreak || 0)}</Text>
+            <Text style={styles.statLabel}>Max Streak</Text>
+          </View>
+          <View style={[styles.statBox, { backgroundColor: cardBg }]}>
             <Text style={[styles.statNumber, { color: textColor }]}>{averageGuesses}</Text>
             <Text style={styles.statLabel}>Avg Guesses</Text>
+          </View>
+          <View style={[styles.statBox, { backgroundColor: cardBg }]}>
+            <Text style={[styles.statNumber, { color: textColor }]}>{formatTime(stats?.averageTime)}</Text>
+            <Text style={styles.statLabel}>Avg Time</Text>
           </View>
         </View>
 
