@@ -8,14 +8,19 @@ import { Alert } from 'react-native';
 
 type Score = {
   username: string;
-  status: string;
-  guesses_taken: number;
+  status?: string;
+  guesses_taken?: number;
   words_guessed?: string[];
   evaluations?: string[][];
-  time_taken?: number; // Add this!
+  time_taken?: number; 
+  // NEW FIELDS
+  total_wins?: number;
+  avg_guesses?: number;
+  avg_time?: number;
 };
 
 export default function ExploreScreen() {
+  // ... (keep your theme variables)
 
   // --- THEME VARIABLES ---
   const { isDark } = useTheme();
@@ -44,9 +49,10 @@ export default function ExploreScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedScore, setSelectedScore] = useState<Score | null>(null);
   const [selectedDate, setSelectedDate] = useState<string>(todayStr); 
-
-  // --- ADD THESE LINES ---
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+  
+  // NEW: Add the mode state
+  const [mode, setMode] = useState<'daily' | 'overall'>('daily');
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -57,15 +63,16 @@ export default function ExploreScreen() {
   }, []);
   // -----------------------
 
-  // Re-fetch automatically whenever the date changes
+  // Re-fetch automatically whenever the date OR mode changes
   useEffect(() => {
     fetchScores();
-  }, [selectedDate]);
+  }, [selectedDate, mode]); // <-- Added mode here
 
  const fetchScores = async () => {
     setRefreshing(true);
     try {
-      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/leaderboard?date=${selectedDate}`);
+      // <-- Added mode to URL
+      const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/leaderboard?mode=${mode}&date=${selectedDate}`);
       const data = await res.json();
       setScores(data);
     } catch (error) {
@@ -93,31 +100,52 @@ export default function ExploreScreen() {
     return new Date(selectedDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
-  return (
+return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeBg }]}>
       
-      {/* Interactive Date Header */}
+      {/* Header Row */}
       <View style={styles.headerRow}>
         <Text style={[styles.headerTitle, { color: textColor }]}>Leaderboard</Text>
         
-        <View style={[styles.dateSelector, { backgroundColor: cardBg }]}>
-          <TouchableOpacity onPress={() => shiftDate(-1)} style={styles.dateArrow} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-            <Ionicons name="chevron-back" size={16} color={textColor} />
-          </TouchableOpacity>
-          
-          <View style={[styles.datePill, { backgroundColor: isDark ? '#333' : '#ffffff' }]}>
-            <Text style={[styles.dateText, { color: textColor }]}>{getDisplayDate()}</Text>
+        {/* Only show Date Selector if we are in Daily mode */}
+        {mode === 'daily' && (
+          <View style={[styles.dateSelector, { backgroundColor: cardBg }]}>
+            <TouchableOpacity onPress={() => shiftDate(-1)} style={styles.dateArrow} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="chevron-back" size={16} color={textColor} />
+            </TouchableOpacity>
+            
+            <View style={[styles.datePill, { backgroundColor: isDark ? '#333' : '#ffffff' }]}>
+              <Text style={[styles.dateText, { color: textColor }]}>{getDisplayDate()}</Text>
+            </View>
+            
+            <TouchableOpacity 
+              onPress={() => shiftDate(1)} 
+              style={[styles.dateArrow, selectedDate === todayStr && styles.dateArrowDisabled]} 
+              disabled={selectedDate === todayStr} 
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Ionicons name="chevron-forward" size={16} color={selectedDate === todayStr ? (isDark ? "#555" : "#d3d6da") : textColor} />
+            </TouchableOpacity>
           </View>
-          
-          <TouchableOpacity 
-            onPress={() => shiftDate(1)} 
-            style={[styles.dateArrow, selectedDate === todayStr && styles.dateArrowDisabled]} 
-            disabled={selectedDate === todayStr} 
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="chevron-forward" size={16} color={selectedDate === todayStr ? (isDark ? "#555" : "#d3d6da") : textColor} />
-          </TouchableOpacity>
-        </View>
+        )}
+      </View>
+
+      {/* NEW: The Mode Toggle Switch */}
+      <View style={[styles.toggleWrapper, { backgroundColor: cardBg }]}>
+        <TouchableOpacity 
+          style={[styles.toggleButton, mode === 'daily' && [styles.toggleActive, { backgroundColor: isDark ? '#333' : '#ffffff' }]]} 
+          onPress={() => setMode('daily')}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.toggleText, mode === 'daily' ? { color: textColor, fontWeight: '700' } : { color: '#888' }]}>Daily</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.toggleButton, mode === 'overall' && [styles.toggleActive, { backgroundColor: isDark ? '#333' : '#ffffff' }]]} 
+          onPress={() => setMode('overall')}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.toggleText, mode === 'overall' ? { color: textColor, fontWeight: '700' } : { color: '#888' }]}>Overall</Text>
+        </TouchableOpacity>
       </View>
       
       <FlatList
@@ -127,58 +155,65 @@ export default function ExploreScreen() {
         renderItem={({ item, index }) => (
           <TouchableOpacity 
             style={[styles.row, { borderColor: borderColor }]}
-            activeOpacity={0.7}
+            activeOpacity={mode === 'overall' ? 1 : 0.7} // Disable click effect on overall
             onPress={() => {
-              // Always let them view their own board
+              if (mode === 'overall') return; // You can't view a board for overall stats!
+              
               if (item.username === currentUsername) {
                 setSelectedScore(item);
                 return;
               }
-              
-              // Check if current user has a completed score for this date
-              const hasPlayed = scores.some(
-                s => s.username === currentUsername && (s.status === 'WIN' || s.status === 'FAIL')
-              );
-              
+              const hasPlayed = scores.some(s => s.username === currentUsername && (s.status === 'WIN' || s.status === 'FAIL'));
               if (hasPlayed) {
                 setSelectedScore(item);
               } else {
-                Alert.alert(
-                  "No Spoilers!", 
-                  "You need to finish your Wordle for this date before peeking at other boards."
-                );
+                Alert.alert("No Spoilers!", "You need to finish your Wordle for this date before peeking.");
               }
             }}
           >
-            <View style={[styles.rankBadge, index === 0 ? styles.rankBadgeGold : { backgroundColor: cardBg }]}>
-              <Text style={[styles.rankText, index === 0 ? styles.rankTextGold : { color: isDark ? '#888' : '#888' }]}>
+            <View style={[styles.rankBadge, index === 0 ? styles.rankBadgeGold : index === 1 ? { backgroundColor: '#c0c0c0' } : index === 2 ? { backgroundColor: '#cd7f32' } : { backgroundColor: cardBg }]}>
+              <Text style={[styles.rankText, index <= 2 ? styles.rankTextGold : { color: isDark ? '#888' : '#888' }]}>
                 {index + 1}
               </Text>
             </View>
             <Text style={[styles.name, { color: textColor }]}>{item.username}</Text>
             
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              {/* NEW: The Timer Pill */}
-              {item.time_taken ? (
-                <View style={[styles.timePill, { backgroundColor: cardBg }]}>
-                  <Ionicons name="time-outline" size={14} color="#888" />
-                  <Text style={styles.timeText}>{formatTime(item.time_taken)}</Text>
-                </View>
-              ) : null}
-
-              {/* EXISTING: The Score Pill */}
-              <View style={[styles.scorePill, item.status === 'WIN' ? [styles.scorePillWin, isDark && { backgroundColor: '#1b3320' }] : [styles.scorePillFail, isDark && { backgroundColor: '#3b1c1c' }]]}>
-                <Text style={[styles.scoreText, item.status !== 'WIN' && styles.scoreTextFail]}>
-                  {item.status === 'WIN' ? `${item.guesses_taken}/6` : 'FAIL'}
-                </Text>
-              </View>
+              
+              {mode === 'daily' ? (
+                /* --- DAILY PILLS --- */
+                <>
+                  {item.time_taken ? (
+                    <View style={[styles.timePill, { backgroundColor: cardBg }]}>
+                      <Ionicons name="time-outline" size={14} color="#888" />
+                      <Text style={styles.timeText}>{formatTime(item.time_taken)}</Text>
+                    </View>
+                  ) : null}
+                  <View style={[styles.scorePill, item.status === 'WIN' ? [styles.scorePillWin, isDark && { backgroundColor: '#1b3320' }] : [styles.scorePillFail, isDark && { backgroundColor: '#3b1c1c' }]]}>
+                    <Text style={[styles.scoreText, item.status !== 'WIN' && styles.scoreTextFail]}>
+                      {item.status === 'WIN' ? `${item.guesses_taken}/6` : 'FAIL'}
+                    </Text>
+                  </View>
+                </>
+              ) : (
+                /* --- OVERALL PILLS --- */
+                <>
+                  <View style={[styles.timePill, { backgroundColor: cardBg }]}>
+                    <Ionicons name="trophy-outline" size={14} color="#c9b458" />
+                    <Text style={[styles.timeText, { color: isDark ? '#c9b458' : '#b59d37' }]}>{item.total_wins} Wins</Text>
+                  </View>
+                  <View style={[styles.scorePill, styles.scorePillWin, isDark && { backgroundColor: '#1b3320' }]}>
+                    <Text style={[styles.scoreText]}>{Number(item.avg_guesses || 0).toFixed(2)} Avg</Text>
+                  </View>
+                </>
+              )}
             </View>
 
-            <Ionicons name="chevron-forward" size={20} color={isDark ? "#555" : "#c7c7cc"} style={{ marginLeft: 12 }} />
+            {mode === 'daily' && <Ionicons name="chevron-forward" size={20} color={isDark ? "#555" : "#c7c7cc"} style={{ marginLeft: 12 }} />}
             
           </TouchableOpacity>
         )}
-        ListEmptyComponent={<Text style={[styles.empty, { color: isDark ? '#666' : '#a1a1aa' }]}>No scores yet today. Be the first!</Text>}
+        ListEmptyComponent={<Text style={[styles.empty, { color: isDark ? '#666' : '#a1a1aa' }]}>No scores here yet.</Text>}
       />
       
       {/* The Wordle Board Modal */}
@@ -353,4 +388,27 @@ const styles = StyleSheet.create({
   gridBoxPresent: { backgroundColor: '#c9b458', borderColor: '#c9b458' },
   gridBoxAbsent: { backgroundColor: '#787c7e', borderColor: '#787c7e' },
   gridLetterWhite: { color: '#ffffff' },
+  toggleWrapper: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 16,
+    marginBottom: 16,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  toggleActive: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  toggleText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
 });

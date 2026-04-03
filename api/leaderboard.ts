@@ -5,20 +5,35 @@ export const config = { runtime: 'edge' };
 export default async function handler(request: Request) {
   try {
     const sql = neon(process.env.EXPO_PUBLIC_DATABASE_URL!);
-    
-    // 1. Grab the date from the URL (e.g., ?date=2023-10-25)
     const url = new URL(request.url);
     const dateQuery = url.searchParams.get('date');
-    
-    // 2. Default to local today if no date is provided
+    const mode = url.searchParams.get('mode'); // <-- Check for mode
+
+    // OVERALL LEADERBOARD
+    if (mode === 'overall') {
+      const scores = await sql`
+        SELECT 
+          username,
+          COUNT(CASE WHEN status = 'WIN' THEN 1 END)::int AS total_wins,
+          COALESCE(ROUND(AVG(CASE WHEN status = 'WIN' THEN guesses_taken END), 2), 0)::float AS avg_guesses,
+          COALESCE(ROUND(AVG(CASE WHEN status = 'WIN' AND time_taken > 0 THEN time_taken END)), 0)::int AS avg_time
+        FROM daily_scores
+        GROUP BY username
+        ORDER BY 
+          total_wins DESC,
+          avg_guesses ASC,
+          avg_time ASC;
+      `;
+      return Response.json(scores);
+    }
+
+    // DAILY LEADERBOARD (Original Logic)
     let targetDate = dateQuery;
     if (!targetDate) {
       const d = new Date();
       targetDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     }
 
-    // 3. Inject the target date into the SQL query
-    // Fetch time_taken and use it to break ties!
     const scores = await sql`
       SELECT username, status, guesses_taken, words_guessed, evaluations, time_taken 
       FROM daily_scores 
