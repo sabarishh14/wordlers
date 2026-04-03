@@ -3,7 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '../_ThemeContext';
@@ -21,7 +22,98 @@ export default function ProfileScreen() {
   const [username, setUsername] = useState<string>('');
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isImporting, setIsImporting] = useState(false);
+  const [funFact, setFunFact] = useState("Initializing NYT Heist...");
   
+  const facts = [
+    "Wordle was created by software engineer Josh Wardle for his partner.",
+    "The New York Times bought Wordle in early 2022.",
+    "There are 2,309 possible winning words in the original game.",
+    "The most common first guess is 'ADIEU'.",
+    "CRANE is considered one of the mathematically best starting words.",
+    "Cracking the NYT vault...",
+    "Extracting your shiny badges..."
+  ];
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (isImporting) {
+      let i = 0;
+      interval = setInterval(() => {
+        i = (i + 1) % facts.length;
+        setFunFact(facts[i]);
+      }, 2500);
+    }
+    return () => clearInterval(interval);
+  }, [isImporting]);
+
+  const handleNYTMessage = async (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'NYT_STATS') {
+        setFunFact("Stats acquired! Saving to database...");
+        await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/import-legacy`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: username, stats: data.stats })
+        });
+        await loadProfile(); // Refresh the page stats
+        setIsImporting(false);
+        Alert.alert("Success!", "Your NYT legacy stats have been successfully imported.");
+      } else if (data.type === 'NYT_ERROR') {
+        setIsImporting(false);
+        Alert.alert("Import Failed", "Could not find your stats. Make sure you are logged into NYT on Safari/Chrome.");
+      }
+    } catch (e) {
+      setIsImporting(false);
+    }
+  };
+
+  const scrapeNYTScript = `
+    setTimeout(() => {
+      try {
+        const admire = document.querySelector('[data-testid="Admire Puzzle"]');
+        const play = document.querySelector('[data-testid="Play"]');
+        if (admire) admire.click();
+        else if (play) play.click();
+
+        setTimeout(() => {
+          const statsBtn = document.getElementById('stats-button');
+          if (statsBtn) {
+            statsBtn.click();
+            setTimeout(() => {
+              const played = document.querySelector('[data-testid="stat-Played"] div')?.innerText || "0";
+              const winPct = document.querySelector('[data-testid="stat-Win %"] div')?.innerText || "0";
+              const currentStreak = document.querySelector('[data-testid="stat-Current Streak"] div')?.innerText || "0";
+              const maxStreak = document.querySelector('[data-testid="stat-Max Streak"] div')?.innerText || "0";
+              
+              const dist = {};
+              document.querySelectorAll('[data-testid="stats__histogram_row"]').forEach(row => {
+                const guess = row.querySelector('p')?.innerText;
+                const count = row.querySelector('[data-testid="stats__histogram_bar"]')?.innerText || "0";
+                dist[guess] = parseInt(count);
+              });
+
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'NYT_STATS',
+                stats: {
+                  played: parseInt(played), winPct: parseInt(winPct), 
+                  currentStreak: parseInt(currentStreak), maxStreak: parseInt(maxStreak),
+                  distribution: dist
+                }
+              }));
+            }, 1000);
+          } else {
+             window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'NYT_ERROR' }));
+          }
+        }, 1000);
+      } catch(e) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'NYT_ERROR' }));
+      }
+    }, 1500);
+    true;
+  `;
+
   // New State for Editing and Avatar
   const [isEditingName, setIsEditingName] = useState(false);
   const [editNameValue, setEditNameValue] = useState('');
@@ -211,6 +303,14 @@ export default function ProfileScreen() {
           )}
         </View>
 
+        {/* Import Button */}
+        <TouchableOpacity 
+          style={{ backgroundColor: isDark ? '#333' : '#e5e5ea', padding: 12, borderRadius: 12, alignItems: 'center', marginBottom: 20 }}
+          onPress={() => setIsImporting(true)}
+        >
+          <Text style={{ color: textColor, fontWeight: 'bold' }}>Import NYT Legacy Stats</Text>
+        </TouchableOpacity>
+
         {/* Modern Stats Grid */}
         <View style={styles.statsContainer}>
           <View style={[styles.statBox, { backgroundColor: cardBg }]}>
@@ -271,6 +371,31 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Log Out</Text>
         </TouchableOpacity>
       </ScrollView>
+      
+      {/* Hidden WebView & Loading Modal */}
+      {isImporting && (
+        <Modal transparent animationType="fade">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+            <ActivityIndicator size="large" color="#4caf50" style={{ marginBottom: 24 }} />
+            <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' }}>
+              Importing from NYT...
+            </Text>
+            <Text style={{ color: '#aaa', fontSize: 14, textAlign: 'center', fontStyle: 'italic' }}>
+              {funFact}
+            </Text>
+            
+            {/* The Invisible Scraper */}
+            <View style={{ width: 0, height: 0, opacity: 0 }}>
+              <WebView
+                source={{ uri: 'https://www.nytimes.com/games/wordle/index.html' }}
+                injectedJavaScript={scrapeNYTScript}
+                onMessage={handleNYTMessage}
+                javaScriptEnabled={true}
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
     </SafeAreaView>
   );
 }

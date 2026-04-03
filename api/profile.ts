@@ -70,7 +70,7 @@ export default async function handler(request: Request) {
       currentStreak = tempStreak;
     }
 
-    // 4. Calculate Average Time (for games they won with a valid time)
+    // 4. Calculate Average Time
     let totalTime = 0;
     let gamesWithTime = 0;
     wins.forEach(w => {
@@ -80,6 +80,28 @@ export default async function handler(request: Request) {
       }
     });
     const averageTime = gamesWithTime > 0 ? Math.round(totalTime / gamesWithTime) : 0;
+
+    // 5. FETCH LEGACY STATS AND COMBINE
+    const legacyRes = await sql`SELECT * FROM user_legacy_stats WHERE username = ${username}`;
+    const legacy = legacyRes.length > 0 ? legacyRes[0] : null;
+
+    if (legacy) {
+      totalPlayed += legacy.played;
+      maxStreak = Math.max(maxStreak, legacy.max_streak);
+      currentStreak = Math.max(currentStreak, legacy.current_streak); // Simplified logic
+      
+      // Merge distributions
+      distribution['1'] += legacy.dist_1;
+      distribution['2'] += legacy.dist_2;
+      distribution['3'] += legacy.dist_3;
+      distribution['4'] += legacy.dist_4;
+      distribution['5'] += legacy.dist_5;
+      distribution['6'] += legacy.dist_6;
+
+      // Recalculate combined win percentage
+      let totalWins = distribution['1'] + distribution['2'] + distribution['3'] + distribution['4'] + distribution['5'] + distribution['6'];
+      winPercentage = totalPlayed > 0 ? Math.round((totalWins / totalPlayed) * 100) : 0;
+    }
 
     return Response.json({
       totalPlayed,
