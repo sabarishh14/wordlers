@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View, Modal } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Haptics from 'expo-haptics';
+import { WebView } from 'react-native-webview';
 import { useTheme } from '../_ThemeContext';
 
 type Stats = {
@@ -24,7 +24,8 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [isImporting, setIsImporting] = useState(false);
   const [funFact, setFunFact] = useState("Initializing NYT Heist...");
-  
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
   const facts = [
     "Wordle was created by software engineer Josh Wardle for his partner.",
     "The New York Times bought Wordle in early 2022.",
@@ -59,7 +60,7 @@ export default function ProfileScreen() {
         });
         await loadProfile(); // Refresh the page stats
         setIsImporting(false);
-        Alert.alert("Success!", "Your NYT legacy stats have been successfully imported.");
+        setShowSuccessModal(true);
       } else if (data.type === 'NYT_ERROR') {
         setIsImporting(false);
         Alert.alert("Import Failed", "Could not find your stats. Make sure you are logged into NYT on Safari/Chrome.");
@@ -303,12 +304,13 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Import Button */}
+        {/* Sleek Import Button */}
         <TouchableOpacity 
-          style={{ backgroundColor: isDark ? '#333' : '#e5e5ea', padding: 12, borderRadius: 12, alignItems: 'center', marginBottom: 20 }}
+          style={[styles.importButton, { borderColor: isDark ? '#333' : '#d3d6da' }]}
           onPress={() => setIsImporting(true)}
         >
-          <Text style={{ color: textColor, fontWeight: 'bold' }}>Import NYT Legacy Stats</Text>
+          <Ionicons name="cloud-download-outline" size={18} color={textColor} />
+          <Text style={[styles.importButtonText, { color: textColor }]}>Import NYT Stats</Text>
         </TouchableOpacity>
 
         {/* Modern Stats Grid */}
@@ -396,6 +398,30 @@ export default function ProfileScreen() {
           </View>
         </Modal>
       )}
+
+      {/* Congrats Success Modal */}
+      <Modal visible={showSuccessModal} transparent={true} animationType="slide">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: cardBg, borderRadius: 24, padding: 32, alignItems: 'center' }}>
+            
+            <View style={styles.successModalIcon}>
+              <Ionicons name="checkmark-circle" size={40} color="#6aaa64" />
+            </View>
+
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: textColor, marginBottom: 12 }}>Data Secured!</Text>
+            <Text style={{ fontSize: 16, color: '#888', textAlign: 'center', marginBottom: 32, lineHeight: 22 }}>
+              Your NYT legacy stats have been successfully extracted and merged with your Wordlers profile.
+            </Text>
+            
+            <TouchableOpacity 
+              style={{ backgroundColor: '#121212', paddingVertical: 16, width: '100%', borderRadius: 16, alignItems: 'center' }} 
+              onPress={() => setShowSuccessModal(false)}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Awesome</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -454,4 +480,29 @@ const styles = StyleSheet.create({
   nameEditContainer: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   nameInput: { flex: 1, backgroundColor: '#ffffff', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, fontSize: 18, fontWeight: '600', borderWidth: 1, borderColor: '#e5e5e5', marginRight: 8 },
   iconBtn: { paddingHorizontal: 4 },
+  importButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    backgroundColor: 'transparent'
+  },
+  importButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginLeft: 8,
+  },
+  successModalIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#e8f5e9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
 });

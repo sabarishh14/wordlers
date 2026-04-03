@@ -6,14 +6,15 @@ export default async function handler(request: Request) {
   try {
     const url = new URL(request.url);
     const username = url.searchParams.get('username');
-
-    if (!username) {
-      return Response.json({ error: 'Username required' }, { status: 400 });
-    }
+    if (!username) return Response.json({ error: 'Username required' }, { status: 400 });
 
     const sql = neon(process.env.EXPO_PUBLIC_DATABASE_URL!);
     
-    // Fetch all historical scores for this user, sorted chronologically
+    // 1. Fetch Legacy Stats First
+    const legacyRes = await sql`SELECT * FROM user_legacy_stats WHERE username = ${username}`;
+    const legacy = legacyRes.length > 0 ? legacyRes[0] : null;
+
+    // 2. Fetch Native Scores
     const scores = await sql`
       SELECT played_date, status, guesses_taken, time_taken 
       FROM daily_scores 
@@ -21,96 +22,78 @@ export default async function handler(request: Request) {
       ORDER BY played_date ASC;
     `;
 
-    // 1. Calculate Base Stats
-    let totalPlayed = scores.length;
-    const wins = scores.filter(s => s.status === 'WIN');
-    let winPercentage = totalPlayed === 0 ? 0 : Math.round((wins.length / totalPlayed) * 100);
+    // 3. Initialize baseline with NYT Legacy Data (if it exists)
+    let totalPlayed = legacy ? legacy.played : 0;
+    let maxStreak = legacy ? legacy.max_streak : 0;
+    let currentStreak = legacy ? legacy.current_streak : 0;
+    let distribution: Record<string, number> = {
+      1: legacy ? legacy.dist_1 : 0, 2: legacy ? legacy.dist_2 : 0,
+      3: legacy ? legacy.dist_3 : 0, 4: legacy ? legacy.dist_4 : 0,
+      5: legacy ? legacy.dist_5 : 0, 6: legacy ? legacy.dist_6 : 0,
+    };
 
-    // 2. Calculate Guess Distribution (How many 1s, 2s, 3s, etc.)
-    const distribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
-    wins.forEach(w => {
-      if (w.guesses_taken && w.guesses_taken >= 1 && w.guesses_taken <= 6) {
-        distribution[w.guesses_taken as keyof typeof distribution]++;
-      }
-    });
+    // --- THE FIX: Separate the Anchor Date from the Win Tracker ---
+    // If the DB has no date (because of the older import), assume "Today"
+    const legacyAnchorDate = legacy && legacy.last_played_date 
+      ? new Date(legacy.last_played_date).setHours(0, 0, 0, 0) 
+      : new Date().setHours(0, 0, 0, 0);
 
-    // 3. Calculate Streaks (Consecutive days won)
-    let tempStreak = 0;
-    let maxStreak = 0;
-    let lastWinDate: number | null = null;
-
-    for (const score of scores) {
-      if (score.status === 'WIN') {
-        const currentDate = new Date(score.played_date).setHours(0, 0, 0, 0);
-        
-        if (lastWinDate === null) {
-          tempStreak = 1;
-        } else {
-          // Check if exactly 1 day passed since last win
-          const diffDays = Math.round((currentDate - lastWinDate) / (1000 * 60 * 60 * 24));
-          if (diffDays === 1) {
-            tempStreak++;
-          } else if (diffDays > 1) {
-            tempStreak = 1; // Streak broke due to missed days
-          }
-        }
-        lastWinDate = currentDate;
-        if (tempStreak > maxStreak) maxStreak = tempStreak;
-      } else {
-        tempStreak = 0; // Streak broke due to a FAIL
-      }
+    // Assume the NYT streak is active as of the anchor date
+    let lastWinDate: number | null = legacyAnchorDate; 
+    if (legacy && legacy.current_streak === 0) {
+      lastWinDate = null;
     }
 
-    // Is the streak still alive today or yesterday?
-    let currentStreak = 0;
-    const today = new Date().setHours(0, 0, 0, 0);
-    const yesterday = today - 86400000;
-    
-    if (lastWinDate === today || lastWinDate === yesterday) {
-      currentStreak = tempStreak;
-    }
-
-    // 4. Calculate Average Time
-    let totalTime = 0;
+    let totalTime = 0; 
     let gamesWithTime = 0;
-    wins.forEach(w => {
-      if (w.time_taken && w.time_taken > 0) {
-        totalTime += w.time_taken;
-        gamesWithTime++;
+
+    // 4. Layer the native scores exactly on top
+    for (const score of scores) {
+      const scoreDate = new Date(score.played_date).setHours(0, 0, 0, 0);
+
+      // CRITICAL: Prevent double counting! 
+      // If the native score happened ON or BEFORE the day we synced NYT, skip it entirely.
+      if (legacy && scoreDate <= legacyAnchorDate) {
+        continue;
       }
-    });
+
+      totalPlayed++;
+
+      if (score.status === 'WIN') {
+        if (score.guesses_taken) distribution[String(score.guesses_taken)]++;
+        if (score.time_taken) { totalTime += score.time_taken; gamesWithTime++; }
+
+        if (lastWinDate === null) {
+          currentStreak = 1;
+        } else {
+          // Check if exactly 1 day passed since last win (seamless legacy stitching!)
+          const diffDays = Math.round((scoreDate - lastWinDate) / 86400000);
+          if (diffDays === 1) currentStreak++;
+          else currentStreak = 1; 
+        }
+        lastWinDate = scoreDate;
+        if (currentStreak > maxStreak) maxStreak = currentStreak;
+      } else {
+        currentStreak = 0; 
+        lastWinDate = scoreDate; // Mark the loss date to break future streaks
+      }
+    }
+
+    // 5. Final check: Did they lose their streak today?
+    if (lastWinDate) {
+      const today = new Date().setHours(0, 0, 0, 0);
+      const yesterday = today - 86400000;
+      // If the last win wasn't today or yesterday, the streak is dead
+      if (lastWinDate !== today && lastWinDate !== yesterday) {
+        currentStreak = 0;
+      }
+    }
+
+    const totalWins = Object.values(distribution).reduce((a, b) => a + b, 0);
+    const winPercentage = totalPlayed === 0 ? 0 : Math.round((totalWins / totalPlayed) * 100);
     const averageTime = gamesWithTime > 0 ? Math.round(totalTime / gamesWithTime) : 0;
 
-    // 5. FETCH LEGACY STATS AND COMBINE
-    const legacyRes = await sql`SELECT * FROM user_legacy_stats WHERE username = ${username}`;
-    const legacy = legacyRes.length > 0 ? legacyRes[0] : null;
-
-    if (legacy) {
-      totalPlayed += legacy.played;
-      maxStreak = Math.max(maxStreak, legacy.max_streak);
-      currentStreak = Math.max(currentStreak, legacy.current_streak); // Simplified logic
-      
-      // Merge distributions
-      distribution['1'] += legacy.dist_1;
-      distribution['2'] += legacy.dist_2;
-      distribution['3'] += legacy.dist_3;
-      distribution['4'] += legacy.dist_4;
-      distribution['5'] += legacy.dist_5;
-      distribution['6'] += legacy.dist_6;
-
-      // Recalculate combined win percentage
-      let totalWins = distribution['1'] + distribution['2'] + distribution['3'] + distribution['4'] + distribution['5'] + distribution['6'];
-      winPercentage = totalPlayed > 0 ? Math.round((totalWins / totalPlayed) * 100) : 0;
-    }
-
-    return Response.json({
-      totalPlayed,
-      winPercentage,
-      currentStreak,
-      maxStreak,
-      distribution,
-      averageTime
-    });
+    return Response.json({ totalPlayed, winPercentage, currentStreak, maxStreak, distribution, averageTime });
 
   } catch (error) {
     console.error("Profile API Error:", error);
