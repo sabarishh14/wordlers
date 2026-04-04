@@ -71,10 +71,14 @@ export default async function handler(request: Request) {
         };
       });
 
-      // Rank by Wins (Desc), then Avg Guesses (Asc), then Avg Time (Asc)
+      // Rank by Avg Guesses (Asc), then Wins (Desc), then Avg Time (Asc)
       overallLeaderboard.sort((a, b) => {
+        // Treat users with 0 wins as having a very high average so they drop to the bottom
+        const aAvg = a.total_wins > 0 ? a.avg_guesses : 999;
+        const bAvg = b.total_wins > 0 ? b.avg_guesses : 999;
+
+        if (aAvg !== bAvg) return aAvg - bAvg;
         if (b.total_wins !== a.total_wins) return b.total_wins - a.total_wins;
-        if (a.avg_guesses !== b.avg_guesses) return a.avg_guesses - b.avg_guesses;
         return a.avg_time - b.avg_time;
       });
 
