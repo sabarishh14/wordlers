@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/_ThemeContext';
+import { router } from 'expo-router';
 // (Keep your existing imports)
 
 type Score = {
@@ -216,7 +217,23 @@ return (
                 {index + 1}
               </Text>
             </View>
-            <Text style={[styles.name, { color: textColor }]}>{item.username}</Text>
+            {item.username === currentUsername ? (
+              <Text style={[styles.name, { color: textColor }]}>{item.username}</Text>
+            ) : (
+              <TouchableOpacity 
+                style={{ flex: 1, flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}
+                activeOpacity={0.5}
+                onPress={(e) => {
+                  e.stopPropagation(); 
+                  router.push(`/user/${item.username}`);
+                }}
+              >
+                <Text style={[styles.name, { color: textColor, flex: 0 }]}>
+                  {item.username}
+                </Text>
+                <Ionicons name="open-outline" size={14} color="#888" style={{ marginLeft: 6 }} />
+              </TouchableOpacity>
+            )}
             
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               

@@ -27,6 +27,7 @@ export default function ProfileScreen() {
   const [funFact, setFunFact] = useState("Initializing NYT Heist...");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showTimeInfo, setShowTimeInfo] = useState(false); // <-- ADD THIS
+  const [showWordInfo, setShowWordInfo] = useState(false);
 
   const facts = [
   "Wordle was created by software engineer Josh Wardle for his partner.",
@@ -402,19 +403,26 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* NEW: Favorite Starter Word Badge */}
+        {/* NEW: Most Used Word Badge */}
         {stats?.favoriteWord && (
-          <View style={[styles.favWordContainer, { backgroundColor: cardBg }]}>
+          <TouchableOpacity 
+            style={[styles.favWordContainer, { backgroundColor: cardBg, marginTop: -4 }]} 
+            activeOpacity={0.7}
+            onPress={() => setShowWordInfo(true)}
+          >
             <View style={[styles.favWordIconBox, { backgroundColor: isDark ? '#333' : '#f4f4f5' }]}>
               <Ionicons name="star" size={24} color="#c9b458" />
             </View>
-            <View style={{ marginLeft: 16 }}>
-              <Text style={styles.favWordLabel}>Most Used Word</Text>
+            <View style={{ marginLeft: 16, flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={styles.favWordLabel}>Most Used Word</Text>
+                <Ionicons name="information-circle-outline" size={16} color="#a1a1aa" style={{ marginLeft: 6, marginBottom: 2 }} />
+              </View>
               <Text style={[styles.favWordValue, { color: textColor }]}>
                 {stats.favoriteWord.toUpperCase()}
               </Text>
             </View>
-          </View>
+          </TouchableOpacity>
         )}
 
         {/* Guess Distribution Chart */}
@@ -512,7 +520,31 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
-
+      
+      {/* Most Used Word Info Modal */}
+      <Modal visible={showWordInfo} transparent={true} animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: cardBg, padding: 32 }]}>
+            <Ionicons name="star-outline" size={48} color="#c9b458" style={{ marginBottom: 16 }} />
+            <Text style={[styles.modalTitle, { color: textColor, marginBottom: 12, textAlign: 'center' }]}>
+              Most Used Word
+            </Text>
+            <Text style={{ fontSize: 16, color: isDark ? '#aaa' : '#555', textAlign: 'center', marginBottom: 24, lineHeight: 22 }}>
+              The New York Times doesn't save a history of the actual words you guess. 
+              {'\n\n'}
+              Because of this, your Most Used Word is calculated <Text style={{ fontWeight: 'bold', color: textColor }}>only</Text> from the games you've played directly within the Wordlers app!
+            </Text>
+            
+            <TouchableOpacity 
+              style={{ backgroundColor: '#121212', paddingVertical: 14, paddingHorizontal: 32, borderRadius: 16, width: '100%', alignItems: 'center' }} 
+              onPress={() => setShowWordInfo(false)}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      
       {/* Average Time Info Modal */}
       <Modal visible={showTimeInfo} transparent={true} animationType="fade">
         <View style={styles.modalOverlay}>
