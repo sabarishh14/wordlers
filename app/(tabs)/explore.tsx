@@ -47,8 +47,10 @@ export default function ExploreScreen() {
   const todayStr = getLocalDateString(new Date());
 
   const [scores, setScores] = useState<Score[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false); // For the top pull-to-refresh
+  const [isLoading, setIsLoading] = useState(true);    // For the center green spinner
   const [selectedScore, setSelectedScore] = useState<Score | null>(null);
+  const [showSpoilerModal, setShowSpoilerModal] = useState(false); // For the new popup
   const [selectedDate, setSelectedDate] = useState<string>(todayStr); 
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   
@@ -105,23 +107,27 @@ export default function ExploreScreen() {
 
   // Re-fetch automatically whenever the date OR mode changes
   useEffect(() => {
-    setScores([]); // <-- THE UX FIX: Instantly clear stale data so it doesn't flash!
-    fetchScores();
+    setScores([]); 
+    setIsLoading(true); // Trigger center spinner when clicking arrows/tabs
+    fetchScores(false); // False means "don't trigger the top spinner"
   }, [selectedDate, mode]);
 
- const fetchScores = async () => {
-    setRefreshing(true);
+ const fetchScores = async (isPullToRefresh = false) => {
+    if (isPullToRefresh) setRefreshing(true);
     try {
-      // <-- Added mode to URL
       const res = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/leaderboard?mode=${mode}&date=${selectedDate}`);
       const data = await res.json();
       setScores(data);
     } catch (error) {
       console.error(error);
     } finally {
-      setRefreshing(false);
+      if (isPullToRefresh) setRefreshing(false);
+      setIsLoading(false); // Hide center spinner when done
     }
   };
+
+  // Helper for the pull-to-refresh action
+  const onRefresh = () => fetchScores(true);
 
   // Date Navigation Logic
   const shiftDate = (days: number) => {
@@ -191,14 +197,14 @@ return (
       
       <FlatList
         data={scores}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={fetchScores} tintColor={textColor} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={textColor} />}
         keyExtractor={(item, index) => item.username + index}
         renderItem={({ item, index }) => (
           <TouchableOpacity 
             style={[styles.row, { borderColor: borderColor }]}
-            activeOpacity={mode === 'overall' ? 1 : 0.7} // Disable click effect on overall
+            activeOpacity={mode === 'overall' ? 1 : 0.7}
             onPress={() => {
-              if (mode === 'overall') return; // You can't view a board for overall stats!
+              if (mode === 'overall') return; 
               
               if (item.username === currentUsername) {
                 setSelectedScore(item);
@@ -208,7 +214,7 @@ return (
               if (hasPlayed) {
                 setSelectedScore(item);
               } else {
-                Alert.alert("No Spoilers!", "You need to finish your Wordle for this date before peeking.");
+                setShowSpoilerModal(true); // <-- Triggers our new modal!
               }
             }}
           >
@@ -271,7 +277,7 @@ return (
           </TouchableOpacity>
         )}
         ListEmptyComponent={
-          refreshing ? (
+          isLoading ? (
             <View style={{ marginTop: 60, alignItems: 'center' }}>
               <ActivityIndicator size="large" color="#6aaa64" />
             </View>
@@ -367,6 +373,30 @@ return (
 
             <TouchableOpacity style={[styles.closeButton, { backgroundColor: isDark ? '#333' : '#121212' }]} onPress={() => setSelectedScore(null)}>
               <Text style={styles.closeButtonText}>Close Board</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+    {/* NEW: No Spoilers Modal */}
+      <Modal visible={showSpoilerModal} transparent={true} animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: isDark ? '#1e1e1e' : '#fff', padding: 32 }]}>
+            <Ionicons name="lock-closed" size={48} color="#e57373" style={{ marginBottom: 16 }} />
+            
+            <Text style={[styles.modalTitle, { color: textColor, marginBottom: 12, textAlign: 'center' }]}>
+              No Spoilers!
+            </Text>
+            
+            <Text style={{ fontSize: 16, color: isDark ? '#aaa' : '#555', textAlign: 'center', marginBottom: 24, lineHeight: 22 }}>
+              You have to finish today's Wordle before you can peek at the leaderboard grids!
+            </Text>
+            
+            <TouchableOpacity 
+              style={{ backgroundColor: '#6aaa64', paddingVertical: 14, paddingHorizontal: 32, borderRadius: 16, width: '100%', alignItems: 'center' }} 
+              onPress={() => setShowSpoilerModal(false)}
+            >
+              <Text style={{ color: '#fff', fontSize: 16, fontWeight: 'bold' }}>Got it</Text>
             </TouchableOpacity>
           </View>
         </View>
